@@ -1,0 +1,33 @@
+name: Build Frozia APKs
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Install Gradle 8.9
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip
+          echo "$PWD/gradle-8.9/bin" >> $GITHUB_PATH
+      - name: Accept Android licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+      - name: Build Salesperson APK
+        working-directory: salesperson
+        run: gradle assembleRelease
+      - name: Build Customer APK
+        working-directory: customer
+        run: gradle assembleRelease
+      - name: Collect APKs
+        run: |
+          mkdir -p output
+          find salesperson -name "*.apk" | head -1 | xargs -I{} cp {} output/Frozia-Salesperson.apk
+          find customer -name "*.apk" | head -1 | xargs -I{} cp {} output/Frozia-Customer.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Frozia-APKs
+          path: output/
