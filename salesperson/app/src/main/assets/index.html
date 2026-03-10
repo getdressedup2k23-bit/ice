@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#f0f4ff">
+<title>Frozia — Salesperson</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+<style>
+:root{
+  --bg:#f0f4ff;--s1:#ffffff;--s2:#e8edf8;--s3:#d8e2f5;
+  --bdr:#d0d8ee;--bdr2:#b8c4e0;
+  --accent:#1a6ef5;--acd:#0e4db8;
+  --text:#1a2340;--muted:#7080a8;
+  --red:#e8233a;--green:#00aa55;--amber:#f59500;--blue:#1a6ef5;
+  --card:#ffffff;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);}
+
+.leaflet-routing-container{display:none!important;}
+.leaflet-control-zoom a{background:#fff!important;color:var(--accent)!important;border-color:var(--bdr)!important;box-shadow:0 2px 6px rgba(0,0,0,0.12)!important;}
+
+/* ── TOPBAR ── */
+.topbar{height:56px;padding:0 16px;background:var(--s1);border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:30;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.tb-brand{display:flex;flex-direction:column;}
+.tb-logo{font-family:'Oswald',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:4px;
+  background:linear-gradient(120deg,var(--accent),#5599ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;}
+.tb-sub{font-size:0.48rem;color:var(--muted);letter-spacing:2px;font-family:'Oswald',sans-serif;}
+.tb-right{display:flex;align-items:center;gap:8px;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
+.tb-clk{font-family:'Oswald',sans-serif;text-align:right;line-height:1.3;}
+.tb-clk .tc{font-size:0.88rem;font-weight:700;color:var(--text);}
+.tb-clk .td{font-size:0.46rem;color:var(--muted);}
+
+/* ── ALERT BANNER ── */
+.alert-banner{position:fixed;top:56px;left:0;right:0;z-index:500;height:0;overflow:hidden;
+  background:linear-gradient(90deg,#b50018,var(--red),#b50018);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px;transition:height 0.3s;}
+.alert-banner.show{height:52px;}
+.alert-msg{font-weight:800;font-size:0.82rem;display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;color:#fff;}
+.ab{animation:blink2 0.5s infinite;}
+@keyframes blink2{0%,100%{opacity:1;}50%{opacity:0;}}
+.alert-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.alert-actions{display:flex;gap:6px;flex-shrink:0;}
+.alert-btn{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);
+  color:#fff;border-radius:7px;padding:6px 12px;font-size:0.7rem;font-weight:800;cursor:pointer;}
+.alert-btn.nav{background:rgba(255,255,255,0.35);}
+
+/* ── LAYOUT ── */
+.body-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;}
+
+/* ── TABS ── */
+.main-tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--bdr);flex-shrink:0;}
+.mtab{flex:1;padding:10px 4px;text-align:center;font-family:'Oswald',sans-serif;
+  font-size:0.64rem;letter-spacing:1.2px;color:var(--muted);cursor:pointer;border:none;
+  background:none;border-bottom:3px solid transparent;transition:all 0.15s;}
+.mtab.on{color:var(--accent);border-bottom-color:var(--accent);}
+
+.tab-panel{display:none;flex:1;overflow:hidden;flex-direction:column;min-height:0;}
+.tab-panel.active{display:flex;}
+
+/* ── MAP PANEL ── */
+#panel-map{position:relative;}
+#mainMap{position:absolute;inset:0;z-index:1;}
+
+/* ── MAP FABS ── */
+.map-fabs{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:10;}
+.mfab{display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:12px;
+  font-size:0.72rem;font-weight:800;border:none;cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,0.15);transition:all 0.15s;white-space:nowrap;}
+.mfab-p{background:linear-gradient(135deg,var(--acd),var(--accent));color:#fff;}
+.mfab-s{background:#fff;border:1px solid var(--bdr);color:var(--text);}
+.mfab:active{transform:scale(0.96);}
+
+/* ── SWIPE HANDLE ── */
+.swipe-tab{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:20;
+  background:var(--accent);color:#fff;border-radius:0 14px 14px 0;
+  padding:18px 7px;cursor:grab;
+  box-shadow:4px 0 16px rgba(26,110,245,0.4);
+  display:flex;flex-direction:column;align-items:center;gap:3px;}
+.swipe-tab:active{cursor:grabbing;}
+.swipe-tab .st-icon{font-size:1.1rem;line-height:1;font-weight:900;}
+.swipe-tab .st-label{font-family:'Oswald',sans-serif;font-size:0.44rem;letter-spacing:1.5px;writing-mode:vertical-lr;}
+.swipe-tab .st-badge{background:var(--red);border-radius:20px;font-size:0.5rem;
+  font-weight:900;padding:2px 5px;min-width:18px;text-align:center;display:none;}
+.swipe-tab .st-badge.show{display:block;}
+
+/* ── SIDE PANEL ── */
+.side-panel{position:absolute;top:0;bottom:0;left:0;width:85vw;max-width:340px;
+  background:var(--s1);z-index:200;
+  box-shadow:4px 0 24px rgba(0,0,0,0.18);
+  display:flex;flex-direction:column;
+  transform:translateX(-100%);}
+.side-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);z-index:199;
+  pointer-events:none;opacity:0;}
+
+.sp-header{padding:16px;background:linear-gradient(135deg,var(--acd),var(--accent));color:#fff;flex-shrink:0;}
+.sp-title{font-family:'Oswald',sans-serif;font-size:1rem;font-weight:700;letter-spacing:2px;}
+.sp-counts{display:flex;gap:8px;margin-top:8px;}
+.sp-count{background:rgba(255,255,255,0.2);border-radius:20px;padding:3px 10px;
+  font-size:0.62rem;font-weight:800;}
+
+/* ── ORDER TABS inside panel ── */
+.sp-tabs{display:flex;border-bottom:1px solid var(--bdr);flex-shrink:0;background:var(--s1);}
+.sp-tab{flex:1;padding:10px;text-align:center;font-family:'Oswald',sans-serif;
+  font-size:0.64rem;letter-spacing:1px;color:var(--muted);cursor:pointer;border:none;
+  background:none;border-bottom:3px solid transparent;transition:all 0.15s;}
+.sp-tab.on{color:var(--accent);border-bottom-color:var(--accent);}
+
+.sp-body{flex:1;overflow-y:auto;padding:10px;}
+.sp-body::-webkit-scrollbar{width:3px;}
+.sp-body::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:3px;}
+
+.empty-orders{text-align:center;padding:3rem 1rem;color:var(--muted);}
+.empty-orders .ei{font-size:2.5rem;margin-bottom:8px;}
+.empty-orders p{font-size:0.8rem;line-height:1.6;}
+
+/* ── ORDER CARD ── */
+.ocard{background:var(--card);border:1px solid var(--bdr);border-radius:12px;
+  padding:12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.ocard.delivered{opacity:0.55;border-color:var(--green);border-left:3px solid var(--green);}
+.ocard:not(.delivered){border-left:3px solid var(--accent);}
+.oc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:4px;}
+.oc-name{font-weight:900;font-size:0.88rem;color:var(--text);}
+.oc-time{font-size:0.6rem;color:var(--muted);margin-top:1px;}
+.oc-product{font-size:0.7rem;color:var(--accent);font-weight:800;margin-bottom:4px;}
+.oc-note{font-size:0.65rem;color:var(--amber);margin-bottom:4px;}
+.oc-nb{font-size:0.64rem;color:var(--muted);}
+.oc-actions{display:flex;gap:6px;margin-top:8px;}
+.oc-act{flex:1;padding:8px 4px;border-radius:8px;font-size:0.66rem;font-weight:800;
+  cursor:pointer;border:none;text-align:center;transition:all 0.15s;font-family:'Nunito',sans-serif;}
+.act-nav{background:#e8f0ff;color:var(--accent);border:1px solid #c0d0f8;}
+.act-call{background:#e8f8ef;color:var(--green);border:1px solid #b8e8cc;}
+.act-done{background:var(--accent);color:#fff;border:none;}
+.act-done:active,.act-nav:active,.act-call:active{transform:scale(0.96);}
+.delivered-tag{font-size:0.65rem;font-weight:800;color:var(--green);
+  text-align:center;padding:6px;margin-top:6px;}
+
+/* ── CUSTOMERS PANEL ── */
+#panel-shops{overflow-y:auto;padding:14px;background:var(--bg);}
+.panel-title{font-family:'Oswald',sans-serif;font-size:1.1rem;font-weight:700;
+  letter-spacing:2px;color:var(--accent);margin-bottom:3px;}
+.panel-sub{font-size:0.7rem;color:var(--muted);margin-bottom:14px;line-height:1.5;}
+.shops-grid{display:flex;flex-direction:column;gap:8px;}
+.sc{background:var(--card);border:1px solid var(--bdr);border-radius:12px;
+  padding:13px;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+.sc-name{font-weight:900;font-size:0.9rem;color:var(--text);margin-bottom:2px;}
+.sc-nb{font-size:0.68rem;color:var(--accent);font-weight:800;margin-bottom:2px;}
+.sc-cr{font-size:0.64rem;color:var(--muted);}
+.sc-ph{font-size:0.64rem;color:var(--muted);}
+.sc-loc{font-size:0.62rem;margin-top:3px;}
+.sc-actions{display:flex;gap:6px;margin-top:9px;}
+.sc-btn{flex:1;padding:8px 4px;text-align:center;border-radius:8px;font-size:0.64rem;
+  font-weight:800;cursor:pointer;border:none;font-family:'Nunito',sans-serif;}
+.sc-del{background:#feeef0;border:1px solid #f8c0c8;color:var(--red);}
+.sc-nav{background:#e8f0ff;border:1px solid #c0d0f8;color:var(--accent);}
+.shops-empty{padding:2rem;text-align:center;color:var(--muted);font-size:0.8rem;line-height:1.8;}
+
+/* ── ADD SHOP PANEL ── */
+#panel-addshop{overflow-y:auto;padding:14px;background:var(--bg);}
+.wiz-title{font-family:'Oswald',sans-serif;font-size:1.1rem;font-weight:700;
+  letter-spacing:2px;color:var(--accent);margin-bottom:3px;}
+.wiz-sub{font-size:0.7rem;color:var(--muted);margin-bottom:14px;line-height:1.5;}
+.fg{margin-bottom:10px;}
+.fl{font-family:'Oswald',sans-serif;font-size:0.54rem;letter-spacing:1.5px;
+  color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px;}
+.fi{width:100%;background:var(--s1);border:1.5px solid var(--bdr2);
+  border-radius:10px;padding:11px 12px;color:var(--text);
+  font-family:'Nunito',sans-serif;font-size:0.88rem;outline:none;
+  transition:border-color 0.18s;-webkit-appearance:none;}
+.fi:focus{border-color:var(--accent);}
+.fi::placeholder{color:var(--muted);}
+.scroll-hint{background:#fff8e6;border:1px dashed var(--amber);
+  border-radius:8px;padding:7px 12px;text-align:center;font-size:0.65rem;
+  color:var(--amber);margin-bottom:6px;}
+.map-picker-wrap{border-radius:11px;overflow:hidden;border:1.5px solid var(--bdr2);
+  position:relative;height:260px;margin-top:5px;touch-action:none;}
+#pickerMap{width:100%;height:100%;}
+.tap-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(255,255,255,0.95);border:1px solid var(--bdr);border-radius:10px;
+  padding:10px 18px;text-align:center;font-size:0.74rem;color:var(--muted);
+  pointer-events:none;transition:opacity 0.3s;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+.tap-hint.gone{opacity:0;}
+.coord-bar{display:flex;gap:7px;margin-top:8px;}
+.coord-pill{flex:1;background:var(--s2);border:1.5px solid var(--bdr2);
+  border-radius:8px;padding:8px 12px;font-family:'Oswald',monospace;font-size:0.62rem;
+  color:var(--accent);display:flex;align-items:center;justify-content:space-between;}
+.gps-btn{background:var(--accent);border:none;
+  border-radius:8px;padding:8px 13px;font-size:0.68rem;color:#fff;
+  font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.gps-btn:active{background:var(--acd);}
+.save-btn{width:100%;padding:14px;border-radius:10px;border:none;margin-top:14px;
+  background:linear-gradient(135deg,var(--acd),var(--accent));
+  color:#fff;font-family:'Oswald',sans-serif;font-size:0.95rem;font-weight:700;
+  letter-spacing:2px;cursor:pointer;box-shadow:0 4px 14px rgba(26,110,245,0.35);}
+.save-btn:active{transform:scale(0.98);}
+
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%) translateY(14px);
+  background:var(--s1);border:1px solid var(--bdr);border-left:4px solid var(--green);
+  border-radius:12px;padding:10px 16px;z-index:700;
+  min-width:200px;max-width:88vw;opacity:0;transition:all 0.25s;
+  box-shadow:0 8px 28px rgba(0,0,0,0.12);}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.toast.err{border-left-color:var(--red);}
+.tt{font-weight:800;font-size:0.82rem;margin-bottom:1px;color:var(--text);}
+.tb2{font-size:0.7rem;color:var(--muted);}
+
+.pp{display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.65rem;font-weight:800;margin-right:3px;}
+.pp-sack{background:#e8f4ff;color:var(--accent);border:1px solid #c0d8ff;}
+.pp-cups{background:#fff4e0;color:var(--amber);border:1px solid #ffe0a0;}
+.pp-both{background:#e8f8ef;color:var(--green);border:1px solid #b8e8cc;}
+</style>
+</head>
+<body>
+
+<!-- ALERT BANNER -->
+<div class="alert-banner" id="alertBanner">
+  <div class="alert-msg"><span class="ab">🚨</span><span class="alert-txt" id="alertTxt">NEW ORDER</span></div>
+  <div class="alert-actions">
+    <button class="alert-btn nav" onclick="alertNavigate()">🗺 Navigate</button>
+    <button class="alert-btn" onclick="ackAlert()">✓ OK</button>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo">FROZIA</div>
+    <div class="tb-sub">Salesperson</div>
+  </div>
+  <div class="tb-right">
+    <div class="live-dot"></div>
+    <div class="tb-clk">
+      <div class="tc" id="tc">--:-- --</div>
+      <div class="td" id="td">AST</div>
+    </div>
+  </div>
+</div>
+
+<div class="body-wrap">
+  <!-- TABS -->
+  <div class="main-tabs">
+    <button class="mtab on" data-tab="map"     onclick="openTab('map')">🗺 Map</button>
+    <button class="mtab"    data-tab="shops"   onclick="openTab('shops')">🏪 Customers</button>
+    <button class="mtab"    data-tab="addshop" onclick="openTab('addshop')">➕ Add</button>
+  </div>
+
+  <!-- MAP TAB -->
+  <div class="tab-panel active" id="panel-map">
+    <div id="mainMap"></div>
+
+    <!-- Drag handle -->
+    <div class="swipe-tab" id="swipeHandle">
+      <span class="st-icon">›</span>
+      <span class="st-label">ORDERS</span>
+      <span class="st-badge" id="orderBadge">0</span>
+      <span class="st-icon" style="opacity:0.45;">›</span>
+    </div>
+
+    <!-- FABs -->
+    <div class="map-fabs">
+      <button class="mfab mfab-p" onclick="optimizeRoute()">⚡ Optimize</button>
+    </div>
+
+    <!-- Side overlay -->
+    <div class="side-overlay" id="sideOverlay" onclick="closePanel()"></div>
+
+    <!-- Side panel -->
+    <div class="side-panel" id="sidePanel">
+      <div class="sp-header">
+        <div class="sp-title">📋 REQUESTS</div>
+        <div class="sp-counts">
+          <span class="sp-count" id="spActive">0 Orders</span>
+          <span class="sp-count" id="spDone">0 Delivered</span>
+        </div>
+      </div>
+      <div class="sp-tabs">
+        <button class="sp-tab on" data-sptab="active" onclick="switchSpTab('active')">📦 Orders</button>
+        <button class="sp-tab"    data-sptab="done"   onclick="switchSpTab('done')">✅ Delivered</button>
+      </div>
+      <div class="sp-body" id="spBody"></div>
+    </div>
+  </div>
+
+  <!-- CUSTOMERS TAB -->
+  <div class="tab-panel" id="panel-shops">
+    <div class="panel-title">Registered Customers</div>
+    <div class="panel-sub">Tap Navigate on any customer to get directions.</div>
+    <div id="shopsGrid" class="shops-grid"></div>
+  </div>
+
+  <!-- ADD CUSTOMER TAB -->
+  <div class="tab-panel" id="panel-addshop">
+    <div class="wiz-title">Add New Customer</div>
+    <div class="wiz-sub">Fill details then tap the map to pin the exact shop location.</div>
+
+    <div class="fg"><label class="fl">Shop Name *</label>
+      <input class="fi" id="w-name" type="text" placeholder="e.g. Al Noor Grocery"></div>
+    <div class="fg"><label class="fl">CR Number *</label>
+      <input class="fi" id="w-cr" type="text" placeholder="Commercial Registration No."></div>
+    <div class="fg"><label class="fl">Mobile Number *</label>
+      <input class="fi" id="w-phone" type="tel" placeholder="+966 5xx xxx xxxx"></div>
+    <div class="fg"><label class="fl">District *</label>
+      <input class="fi" id="w-nb" type="text" placeholder="e.g. Al Faisaliyah"></div>
+
+    <div class="fg">
+      <label class="fl">📍 Pin Shop Location</label>
+      <div class="scroll-hint">☝ Scroll the page by dragging outside the map box below</div>
+      <div class="map-picker-wrap">
+        <div id="pickerMap"></div>
+        <div class="tap-hint" id="tapHint">
+          <div style="font-size:1.4rem;margin-bottom:4px;">📍</div>Tap map to drop pin
+        </div>
+      </div>
+      <div class="coord-bar">
+        <div class="coord-pill">
+          <span id="coordTxt">No location pinned</span>
+          <span id="coordOk" style="color:var(--green);display:none;margin-left:6px;">✓</span>
+        </div>
+        <button class="gps-btn" onclick="useGPS()">📡 My Location</button>
+      </div>
+      <div id="gpsMsg" style="font-size:0.65rem;color:var(--muted);margin-top:4px;min-height:14px;text-align:center;"></div>
+    </div>
+
+    <button class="save-btn" onclick="saveShop()">✓ SAVE CUSTOMER</button>
+    <div style="height:40px;"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="tt" id="tt"></div><div class="tb2" id="tb2"></div></div>
+
+<script>
+/* ══════ CLOCK ══════ */
+function sast(){return new Date(Date.now()+3*3600000);}
+function fT(d){const h=d.getUTCHours(),m=d.getUTCMinutes(),ap=h>=12?'PM':'AM',h12=((h%12)||12).toString().padStart(2,'0');return`${h12}:${m.toString().padStart(2,'0')} ${ap}`;}
+function fD(d){const D=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${D[d.getUTCDay()]} ${d.getUTCDate()} ${M[d.getUTCMonth()]} ${d.getUTCFullYear()}`;}
+setInterval(()=>{const t=sast();document.getElementById('tc').textContent=fT(t);document.getElementById('td').textContent=fD(t)+' AST';},1000);
+
+/* ══════ DATA ══════ */
+const SHOPS_KEY='fz_shops_v3',ORDERS_KEY='fz_orders_v3';
+function loadShops(){try{return JSON.parse(localStorage.getItem(SHOPS_KEY))||[];}catch(e){return[];}}
+function saveShopsData(s){localStorage.setItem(SHOPS_KEY,JSON.stringify(s));}
+function loadOrders(){try{return JSON.parse(localStorage.getItem(ORDERS_KEY))||[];}catch(e){return[];}}
+function saveOrders(o){localStorage.setItem(ORDERS_KEY,JSON.stringify(o));}
+let shops=loadShops(), orders=loadOrders();
+
+/* ══════ HELPERS ══════ */
+const PROD={sack:'🧊 Ice Sack',cups:'🥤 Ice Cups',both:'📦 Sacks + Cups'};
+const PCLS={sack:'pp-sack',cups:'pp-cups',both:'pp-both'};
+function prodPill(p){return`<span class="pp ${PCLS[p]||'pp-sack'}">${PROD[p]||p}</span>`;}
+const VPOS=[26.4207,50.0888];
+function haversine(a,b){const R=6371,dL=(b[0]-a[0])*Math.PI/180,dN=(b[1]-a[1])*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dN/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+/* ══════ MAIN MAP ══════ */
+let mainMap=null,mapMarkers=[],myLocMarker=null;
+
+function initMainMap(){
+  if(mainMap)return;
+  mainMap=L.map('mainMap',{center:VPOS,zoom:12,zoomControl:true,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd'}).addTo(mainMap);
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const ll=[pos.coords.latitude,pos.coords.longitude];
+      mainMap.setView(ll,13);
+      if(myLocMarker)myLocMarker.remove();
+      myLocMarker=L.marker(ll,{icon:truckIcon(),zIndexOffset:1000}).addTo(mainMap).bindPopup('📍 Your Location');
+    },()=>{},{enableHighAccuracy:true,timeout:8000});
+  }
+  refreshMapMarkers();
+}
+
+function truckIcon(){
+  return L.divIcon({html:`<div style="background:var(--accent);border:2px solid white;border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.2);">🚛</div>`,iconSize:[36,36],iconAnchor:[18,18],className:''});
+}
+function orderIcon(){
+  return L.divIcon({html:`<div style="position:relative;"><svg width="30" height="40" viewBox="0 0 30 40"><path d="M15 1C7.3 1 1 7.3 1 15C1 25 15 39 15 39C15 39 29 25 29 15C29 7.3 22.7 1 15 1Z" fill="#1a6ef5" stroke="white" stroke-width="1.5"/></svg><span style="position:absolute;top:5px;left:0;right:0;text-align:center;font-size:12px;">🧊</span></div>`,iconSize:[30,40],iconAnchor:[15,40],className:''});
+}
+
+function shopIcon(){
+  return L.divIcon({html:`<div style="position:relative;"><svg width="28" height="38" viewBox="0 0 30 40"><path d="M15 1C7.3 1 1 7.3 1 15C1 25 15 39 15 39C15 39 29 25 29 15C29 7.3 22.7 1 15 1Z" fill="#00aa55" stroke="white" stroke-width="1.5"/></svg><span style="position:absolute;top:5px;left:0;right:0;text-align:center;font-size:11px;">🏪</span></div>`,iconSize:[28,38],iconAnchor:[14,38],className:''});
+}
+
+function refreshMapMarkers(){
+  mapMarkers.forEach(m=>m.remove());mapMarkers=[];
+  if(!mainMap)return;
+  // All saved shops — green 🏪 pins
+  shops.filter(s=>s.lat&&s.lng).forEach(s=>{
+    const mk=L.marker([s.lat,s.lng],{icon:shopIcon()}).addTo(mainMap);
+    const navBtn=`<button onclick="navigateTo('${s.id}')" style="flex:1;padding:7px 4px;background:#1a6ef5;color:#fff;border:none;border-radius:7px;font-size:0.7rem;font-weight:700;cursor:pointer;">🗺 Go</button>`;
+    const callBtn=s.phone?`<button onclick="window.location.href='tel:${s.phone.replace(/\s/g,'')}'" style="flex:1;padding:7px 4px;background:#e8f8ef;color:#00aa55;border:1px solid #b8e8cc;border-radius:7px;font-size:0.7rem;font-weight:700;cursor:pointer;">📞 Call</button>`:'';
+    mk.bindPopup(`<div style="font-family:sans-serif;min-width:150px;"><b style="font-size:0.88rem;">${s.name}</b><br><small style="color:#666;">📍 ${s.nb||''}</small><br><small style="color:#666;">📞 ${s.phone||'—'}</small><div style="display:flex;gap:5px;margin-top:8px;">${navBtn}${callBtn}</div></div>`);
+    mapMarkers.push(mk);
+  });
+  // Active orders — blue 🧊 pins
+  orders.filter(o=>o.status!=='delivered'&&o.lat&&o.lng).forEach(o=>{
+    const mk=L.marker([o.lat,o.lng],{icon:orderIcon(),zIndexOffset:100}).addTo(mainMap);
+    const callBtn2=o.phone?`<button onclick="window.location.href='tel:${o.phone.replace(/\s/g,'')}'" style="flex:1;padding:7px 4px;background:#e8f8ef;color:#00aa55;border:1px solid #b8e8cc;border-radius:7px;font-size:0.7rem;font-weight:700;cursor:pointer;">📞 Call</button>`:'';
+    mk.bindPopup(`<div style="font-family:sans-serif;min-width:150px;"><b style="font-size:0.88rem;">${o.shop}</b><br><small style="color:#1a6ef5;font-weight:700;">${PROD[o.product]||o.product}</small>${o.notes?`<br><small style="color:#f59500;">⚠ ${o.notes}</small>`:''}<br><small style="color:#888;">🕐 ${o.time}</small><div style="display:flex;gap:5px;margin-top:8px;"><button onclick="navigateTo('${o.id}')" style="flex:1;padding:7px 4px;background:#1a6ef5;color:#fff;border:none;border-radius:7px;font-size:0.7rem;font-weight:700;cursor:pointer;">🗺 Go</button>${callBtn2}<button onclick="markDone('${o.id}')" style="flex:1;padding:7px 4px;background:#e8f0ff;color:#1a6ef5;border:1px solid #c0d0f8;border-radius:7px;font-size:0.7rem;font-weight:700;cursor:pointer;">✓ Done</button></div></div>`);
+    mapMarkers.push(mk);
+  });
+}
+
+/* ══════ SIDE PANEL ══════ */
+let currentSpTab='active';
+
+function openPanel(){
+  document.getElementById('sidePanel').classList.add('open');
+  document.getElementById('sideOverlay').classList.add('show');
+  renderSpBody();
+}
+function closePanel(){
+  document.getElementById('sidePanel').classList.remove('open');
+  document.getElementById('sideOverlay').classList.remove('show');
+}
+function switchSpTab(tab){
+  currentSpTab=tab;
+  document.querySelectorAll('.sp-tab').forEach(b=>b.classList.toggle('on',b.dataset.sptab===tab));
+  renderSpBody();
+}
+
+function renderSpBody(){
+  const active=orders.filter(o=>o.status!=='delivered');
+  const done=orders.filter(o=>o.status==='delivered');
+  const badge=active.length;
+
+  // Update badge
+  const badgeEl=document.getElementById('orderBadge');
+  badgeEl.textContent=badge;
+  badgeEl.classList.toggle('show',badge>0);
+
+  document.getElementById('spActive').textContent=active.length+' Orders';
+  document.getElementById('spDone').textContent=done.length+' Delivered';
+
+  const list=currentSpTab==='active'?active:done;
+  const body=document.getElementById('spBody');
+
+  if(!list.length){
+    body.innerHTML=`<div class="empty-orders"><div class="ei">${currentSpTab==='active'?'📭':'✅'}</div><p>${currentSpTab==='active'?'No active orders.<br>Waiting for customers…':'No delivered orders yet.'}</p></div>`;
+    return;
+  }
+
+  body.innerHTML=list.map(o=>`
+    <div class="ocard ${o.status==='delivered'?'delivered':''}">
+      <div class="oc-top">
+        <div>
+          <div class="oc-name">${o.shop}</div>
+          <div class="oc-time">🕐 ${o.time}</div>
+        </div>
+      </div>
+      <div class="oc-product">${prodPill(o.product)}</div>
+      ${o.nb?`<div class="oc-nb">📍 ${o.nb}</div>`:''}
+      ${o.notes?`<div class="oc-note">⚠ ${o.notes}</div>`:''}
+      ${o.status!=='delivered'?`
+        <div class="oc-actions">
+          <button class="oc-act act-done" onclick="markDone('${o.id}')">✓ Delivered</button>
+          ${o.lat&&o.lng?`<button class="oc-act act-nav" onclick="closePanel();navigateTo('${o.id}')">🗺 Go</button>`:''}
+          <button class="oc-act act-call" onclick="callShop('${o.id}')">📞</button>
+        </div>`
+      :`<div class="delivered-tag">✅ Delivered</div>`}
+    </div>`).join('');
+}
+
+function updateBadge(){
+  const n=orders.filter(o=>o.status!=='delivered').length;
+  const b=document.getElementById('orderBadge');
+  b.textContent=n;b.classList.toggle('show',n>0);
+  document.getElementById('spActive').textContent=n+' Orders';
+}
+
+function markDone(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  o.status='delivered';saveOrders(orders);
+  renderSpBody();refreshMapMarkers();updateBadge();
+  toast('✅ Delivered',o.shop+' marked as delivered');
+}
+function callShop(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  if(o.phone)window.location.href='tel:'+o.phone.replace(/\s/g,'');
+  else toast('No Number','No phone saved.','err');
+}
+
+/* ══════ INCOMING ORDERS ══════ */
+let lastAlertOrderId=null;
+window._lastHandledT=0;
+
+function handleOrder(data){
+  if(!data||data.type!=='ORDER')return;
+  if(data._t&&data._t===window._lastHandledT)return;
+  if(data._t)window._lastHandledT=data._t;
+  const sh=shops.find(s=>String(s.cr)===String(data.cr));
+  if(!sh){toast('Unknown CR','CR '+data.cr+' not registered.','err');return;}
+  const t=sast();
+  const order={id:'O'+Date.now(),shop:sh.name,nb:sh.nb||'',phone:sh.phone||'',
+    lat:sh.lat||null,lng:sh.lng||null,product:data.product||'sack',
+    notes:data.notes||'',status:'active',time:fT(t)};
+  orders.unshift(order);saveOrders(orders);
+  renderSpBody();refreshMapMarkers();updateBadge();
+  if(mainMap&&order.lat&&order.lng)mainMap.setView([order.lat,order.lng],15);
+  playAlert();
+  lastAlertOrderId=order.id;
+  document.getElementById('alertTxt').textContent=`🚨 ${order.shop}  —  ${PROD[order.product]||order.product}`;
+  document.getElementById('alertBanner').classList.add('show');
+  setTimeout(()=>document.getElementById('alertBanner').classList.remove('show'),20000);
+}
+function ackAlert(){document.getElementById('alertBanner').classList.remove('show');}
+function alertNavigate(){ackAlert();if(lastAlertOrderId)navigateTo(lastAlertOrderId);}
+
+function playAlert(){
+  try{const ac=new(window.AudioContext||window.webkitAudioContext)();
+    [880,660,880,1100].forEach((f,i)=>{const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);o.frequency.value=f;g.gain.setValueAtTime(0,ac.currentTime+i*0.17);g.gain.linearRampToValueAtTime(0.3,ac.currentTime+i*0.17+0.06);g.gain.linearRampToValueAtTime(0,ac.currentTime+i*0.17+0.15);o.start(ac.currentTime+i*0.17);o.stop(ac.currentTime+i*0.17+0.16);});}catch(e){}
+}
+
+/* ══════ CUSTOMERS GRID ══════ */
+function renderShopsGrid(){
+  const g=document.getElementById('shopsGrid');
+  if(!shops.length){g.innerHTML=`<div class="shops-empty">No customers yet.<br>Use ➕ Add to register your first customer.</div>`;return;}
+  g.innerHTML=shops.map(s=>`
+    <div class="sc">
+      <div class="sc-name">${s.name}</div>
+      <div class="sc-nb">📍 ${s.nb||'—'}</div>
+      <div class="sc-cr">📋 CR: ${s.cr||'—'}</div>
+      <div class="sc-ph">📞 ${s.phone||'—'}</div>
+      <div class="sc-loc" style="color:${s.lat?'var(--green)':'var(--muted)'}">
+        ${s.lat?'✅ Location pinned':'⚠ No location pinned'}</div>
+      <div class="sc-actions">
+        ${s.lat&&s.lng?`<button class="sc-btn sc-nav" onclick="navigateTo('${s.id}')">🗺 Navigate</button>`:''}
+        <button class="sc-btn sc-del" onclick="deleteShop('${s.id}')">🗑 Remove</button>
+      </div>
+    </div>`).join('');
+}
+function deleteShop(id){
+  const idx=shops.findIndex(s=>String(s.id)===String(id));if(idx===-1)return;
+  const name=shops[idx].name;shops.splice(idx,1);saveShopsData(shops);renderShopsGrid();
+  toast('🗑 Removed',name+' deleted.');
+}
+
+/* ══════ PICKER MAP ══════ */
+let pickerMap=null,pinMarker=null,pinPos=null;
+function initPickerMap(){
+  if(pickerMap){setTimeout(()=>pickerMap.invalidateSize(),100);return;}
+  pickerMap=L.map('pickerMap',{zoomControl:true,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd'}).addTo(pickerMap);
+  pickerMap.setView(VPOS,13);
+  pickerMap.on('click',e=>dropPin(e.latlng.lat,e.latlng.lng));
+}
+function dropPin(lat,lng){
+  pinPos={lat,lng};
+  document.getElementById('tapHint').classList.add('gone');
+  document.getElementById('coordTxt').textContent=`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  document.getElementById('coordOk').style.display='inline';
+  if(pinMarker)pinMarker.remove();
+  pinMarker=L.marker([lat,lng],{icon:L.divIcon({html:`<div style="background:#e8233a;border:2px solid white;border-radius:50% 50% 50% 0;width:26px;height:26px;transform:rotate(-45deg);box-shadow:0 3px 8px rgba(0,0,0,0.3);"></div>`,iconSize:[26,26],iconAnchor:[13,26],className:''})}).addTo(pickerMap);
+  pickerMap.panTo([lat,lng]);
+}
+function useGPS(){
+  const m=document.getElementById('gpsMsg');
+  if(!navigator.geolocation){m.textContent='GPS not available.';return;}
+  m.textContent='📡 Getting your location…';m.style.color='var(--muted)';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude:lat,longitude:lng}=pos.coords;
+    if(pickerMap)pickerMap.setView([lat,lng],15);
+    dropPin(lat,lng);
+    m.textContent='✅ Location captured!';m.style.color='var(--green)';
+  },err=>{m.textContent='⚠ '+err.message;m.style.color='var(--red)';},{enableHighAccuracy:true,timeout:10000});
+}
+function saveShop(){
+  const name=document.getElementById('w-name').value.trim();
+  const cr=document.getElementById('w-cr').value.trim();
+  const phone=document.getElementById('w-phone').value.trim();
+  const nb=document.getElementById('w-nb').value.trim();
+  if(!name)return toast('Required','Enter shop name.','err');
+  if(!cr)return toast('Required','Enter CR number.','err');
+  if(!phone)return toast('Required','Enter mobile number.','err');
+  if(!nb)return toast('Required','Enter district.','err');
+  if(!pinPos)return toast('Required','Tap the map to pin location.','err');
+  shops.push({id:'S'+Date.now(),name,cr,phone,nb,lat:pinPos.lat,lng:pinPos.lng});
+  saveShopsData(shops);
+  ['w-name','w-cr','w-phone','w-nb'].forEach(id=>document.getElementById(id).value='');
+  pinPos=null;
+  document.getElementById('tapHint').classList.remove('gone');
+  document.getElementById('coordTxt').textContent='No location pinned';
+  document.getElementById('coordOk').style.display='none';
+  document.getElementById('gpsMsg').textContent='';
+  if(pinMarker){pinMarker.remove();pinMarker=null;}
+  pickerMap=null;
+  renderShopsGrid();openTab('shops');
+  toast('✅ Saved!',name+' added.');
+}
+
+/* ══════ NAVIGATION — opens Google Maps ══════ */
+let currentNavTarget=null;
+
+function navigateTo(id){
+  let target=orders.find(o=>o.id===id);
+  if(!target){
+    const sh=shops.find(s=>s.id===id);
+    if(sh&&sh.lat&&sh.lng)target={shop:sh.name,lat:sh.lat,lng:sh.lng,phone:sh.phone,nb:sh.nb};
+  }
+  if(!target||!target.lat||!target.lng){toast('No Location','This customer has no pinned location.','err');return;}
+  // geo: URI — Android opens Google Maps natively, no API key needed
+  window.location.href='geo:'+target.lat+','+target.lng+'?q='+target.lat+','+target.lng+'('+encodeURIComponent(target.shop)+')';
+}
+
+
+
+/* ══════ TABS ══════ */
+function openTab(id){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+id));
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.toggle('on',b.dataset.tab===id));
+  if(id==='map'){initMainMap();setTimeout(()=>mainMap&&mainMap.invalidateSize(),200);}
+  if(id==='shops')renderShopsGrid();
+  if(id==='addshop')setTimeout(initPickerMap,100);
+}
+
+/* ══════ MAP ACTIONS ══════ */
+function optimizeRoute(){
+  const active=orders.filter(o=>o.status!=='delivered'&&o.lat&&o.lng);
+  if(!active.length){toast('No Orders','No active orders with locations.','err');return;}
+  if(!mainMap){initMainMap();return;}
+  const pts=[VPOS,...active.map(o=>[o.lat,o.lng])];
+  if(window._optLine)window._optLine.remove();
+  window._optLine=L.polyline(pts,{color:'#1a6ef5',opacity:0.7,weight:3,dashArray:'8 5'}).addTo(mainMap);
+  mainMap.fitBounds(L.latLngBounds(pts),{padding:[40,40]});
+  toast('⚡ Route Planned',active.length+' stops mapped');
+}
+
+/* ══════ MQTT ══════ */
+const MQTT_BROKER='wss://broker.hivemq.com:8884/mqtt';
+const MQTT_TOPIC='frozia/orders/v1';
+let mqttClient=null;
+function connectMQTT(){
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js';
+  s.onload=()=>{
+    try{
+      mqttClient=mqtt.connect(MQTT_BROKER,{clientId:'fz_sp_'+Math.random().toString(36).substr(2,8),clean:true,reconnectPeriod:4000});
+      mqttClient.on('connect',()=>{mqttClient.subscribe(MQTT_TOPIC,{qos:1});toast('🟢 Connected','Listening for orders');});
+      mqttClient.on('message',(t,msg)=>{try{const d=JSON.parse(msg.toString());if(d._src==='shop')handleOrder(d);}catch(e){}});
+      mqttClient.on('offline',()=>toast('⚠ Offline','Reconnecting…','err'));
+    }catch(e){}
+  };
+  document.head.appendChild(s);
+}
+
+/* ══════ TOAST ══════ */
+function toast(title,body,type='ok'){
+  const t=document.getElementById('toast');
+  document.getElementById('tt').textContent=title;
+  document.getElementById('tb2').textContent=body||'';
+  t.className='toast show'+(type==='err'?' err':'');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ══════ INIT ══════ */
+updateBadge();
+initMainMap();
+connectMQTT();
+
+// Scroll fix for add shop panel
+const addshopPanel=document.getElementById('panel-addshop');
+const mapWrap=document.querySelector('.map-picker-wrap');
+let touchInsideMap=false;
+mapWrap.addEventListener('touchstart',()=>{touchInsideMap=true;},{passive:true});
+addshopPanel.addEventListener('touchstart',e=>{if(!mapWrap.contains(e.target))touchInsideMap=false;},{passive:true});
+addshopPanel.addEventListener('touchmove',e=>{if(touchInsideMap)e.stopPropagation();},{passive:false});
+
+// ── MIDNIGHT RESET + DAILY LOG ──
+const LOG_KEY='fz_daily_logs';
+function dateStr(d){const t=new Date(d.getTime()+3*3600000);return String(t.getUTCDate()).padStart(2,'0')+'/'+String(t.getUTCMonth()+1).padStart(2,'0')+'/'+String(t.getUTCFullYear()).slice(-2);}
+function saveDailyLog(){
+  if(!orders.length)return;
+  try{
+    const logs=JSON.parse(localStorage.getItem(LOG_KEY)||'{}');
+    const now=sast();const key=dateStr(now);
+    const hh=String(now.getUTCHours()).padStart(2,'0');const mi=String(now.getUTCMinutes()).padStart(2,'0');
+    logs[key]={date:key,resetTime:`${hh}:${mi} AST`,orders:JSON.parse(JSON.stringify(orders)),
+      totalOrders:orders.length,delivered:orders.filter(o=>o.status==='delivered').length,
+      pending:orders.filter(o=>o.status!=='delivered').length,savedAt:new Date().toISOString()};
+    localStorage.setItem(LOG_KEY,JSON.stringify(logs));
+  }catch(e){}
+}
+function doMidnightReset(){
+  saveDailyLog();orders=[];saveOrders(orders);
+  renderSpBody();refreshMapMarkers();updateBadge();
+  toast('🌙 New Day',"Orders reset. Log saved.");
+}
+(function scheduleMidnight(){
+  const now=new Date();const ast=new Date(now.getTime()+3*3600000);
+  const nextMid=new Date(Date.UTC(ast.getUTCFullYear(),ast.getUTCMonth(),ast.getUTCDate()+1,0,0,0));
+  setTimeout(()=>{doMidnightReset();setInterval(doMidnightReset,864e5);},nextMid.getTime()-3*36e5-now.getTime());
+})();
+
+// ── DRAG-TO-OPEN PANEL ──
+const _panel=document.getElementById('sidePanel');
+const _overlay=document.getElementById('sideOverlay');
+const _handle=document.getElementById('swipeHandle');
+const PW=Math.min(window.innerWidth*0.85,340);
+let _open=false,_drag=false,_x0=0,_px0=0;
+
+function _pos(x,anim){
+  const cx=Math.max(-PW,Math.min(0,x));
+  _panel.style.transition=anim?'transform 0.25s cubic-bezier(0.4,0,0.2,1)':'none';
+  _overlay.style.transition=anim?'opacity 0.25s':'none';
+  _panel.style.transform=`translateX(${cx}px)`;
+  const r=(cx+PW)/PW;
+  _overlay.style.opacity=String(r*0.42);
+  _overlay.style.pointerEvents=r>0.05?'all':'none';
+  const arrows=_handle.querySelectorAll('.st-icon');
+  const ch=r>0.5?'‹':'›';
+  arrows.forEach(a=>a.textContent=ch);
+}
+function openPanel(){_open=true;_pos(0,true);renderSpBody();}
+function closePanel(){_open=false;_pos(-PW,true);}
+
+_handle.addEventListener('touchstart',e=>{_drag=true;_x0=e.touches[0].clientX;_px0=_open?0:-PW;_panel.style.transition='none';},{passive:true});
+document.getElementById('mainMap').addEventListener('touchstart',e=>{_x0=e.touches[0].clientX;_px0=_open?0:-PW;if(_x0<50||_open){_drag=true;_panel.style.transition='none';}},{passive:true});
+document.addEventListener('touchmove',e=>{if(!_drag)return;_pos(_px0+(e.touches[0].clientX-_x0),false);},{passive:true});
+document.addEventListener('touchend',e=>{if(!_drag)return;_drag=false;const dx=e.changedTouches[0].clientX-_x0;(_px0+dx)>-PW*0.55?openPanel():closePanel();},{passive:true});
+_overlay.addEventListener('click',closePanel);
+_overlay.addEventListener('touchend',e=>{e.preventDefault();closePanel();});
+</script>
+</body>
+</html>
